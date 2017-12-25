@@ -29,7 +29,7 @@ public protocol DrawerControllerDelegate: class {
 }
 
 public extension UIViewController {
-    var evo_drawerController: DrawerController? {
+    weak var evo_drawerController: DrawerController? {
         var parentViewController = self.parent
 
         while parentViewController != nil {
@@ -1011,10 +1011,16 @@ open class DrawerController: UIViewController, UIGestureRecognizerDelegate {
 
             newCenterRect.origin.x = targetClosePoint
 
-            UIView.animate(withDuration: firstDuration, delay: 0.0, usingSpringWithDamping: self.drawerDampingFactor, initialSpringVelocity: distance / self.animationVelocity, options: [], animations: { () -> Void in
+            UIView.animate(withDuration: firstDuration, delay: 0.0, usingSpringWithDamping: self.drawerDampingFactor, initialSpringVelocity: distance / self.animationVelocity, options: [], animations: {
+                [weak self] in
+                guard let `self` = self else { return }
+
                 self.centerContainerView.frame = newCenterRect
                 sideDrawerViewController?.view.frame = self.childControllerContainerView.bounds
-            }, completion: { (finished) -> Void in
+            }, completion: {
+                [weak self] finished in
+                guard let `self` = self else { return }
+
                 let oldCenterRect = self.centerContainerView.frame
                 self.setCenter(newCenterViewController, animated: animated)
                 self.centerContainerView.frame = oldCenterRect
@@ -1286,6 +1292,9 @@ open class DrawerController: UIViewController, UIGestureRecognizerDelegate {
                         self.setNeedsStatusBarAppearanceUpdate()
                         self.centerContainerView.frame = newFrame
                         self.updateDrawerVisualState(for: drawerSide, fractionVisible: 1.0)
+
+                        self.delegate?.willOpenDrawer(side: drawerSide)
+
                     }, completion: {
                         [weak self] finished in
                         guard let `self` = self else { return }
@@ -1297,6 +1306,8 @@ open class DrawerController: UIViewController, UIGestureRecognizerDelegate {
 
                     self.resetDrawerVisualState(for: drawerSide)
                     self.animatingDrawer = false
+
+                    self.delegate?.willOpenDrawer(side: drawerSide)
 
                     completion?(finished)
                 })
@@ -1349,27 +1360,24 @@ open class DrawerController: UIViewController, UIGestureRecognizerDelegate {
             UIView.animate(withDuration: duration, delay: 0.0, usingSpringWithDamping: self.drawerDampingFactor, initialSpringVelocity: velocity / distance, options: options, animations: {
                 [weak self] in
                 guard let `self` = self else { return }
+
                 self.setNeedsStatusBarAppearanceUpdate()
                 self.centerContainerView.frame = newFrame
                 self.updateDrawerVisualState(for: visibleSide, fractionVisible: 0.0)
 
-                // Drawer will close
-                if let delegate = self.delegate {
-                    delegate.willCloseDrawer(side: self.openSide)
-                }
+                self.delegate?.willCloseDrawer(side: visibleSide)
 
             }, completion: {
                 [weak self] finished in
                 guard let `self` = self else { return }
-                // Drawer did close
-                if let delegate = self.delegate {
-                    delegate.didCloseDrawer(side: self.openSide)
-                }
 
                 sideDrawerViewController?.endAppearanceTransition()
                 self.openSide = .none
                 self.resetDrawerVisualState(for: visibleSide)
                 self.animatingDrawer = false
+
+                self.delegate?.didCloseDrawer(side: visibleSide)
+
                 completion?(finished)
             })
         }
